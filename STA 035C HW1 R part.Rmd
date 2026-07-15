@@ -1,0 +1,474 @@
+---
+title: 'STA 035C Homework 1: R Part'
+author: "Yuan Xie"
+date: "2025-04-10"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+```
+
+---
+
+## Problem 2
+### (c)
+```{r}
+# set the values of theta
+theta_vals <- c(0.2, 0.5, 0.8)
+# repeat 100 times
+n <- 100
+# set the true p value at 0.3 at this time
+p_true1 <- 0.3
+
+# set the seed to keep reproducibility
+set.seed(123)
+# the results of flips are in a binomial distribution
+observed_flips <- rbinom(n, size = 1, prob = p_true1)
+
+# initialize the priors
+prior <- rep(1/3, 3)  # 3 thetas
+posterior_history <- matrix(NA, nrow = n, ncol = 3)
+
+# update it gradually
+for (i in 1:n) {
+  x <- observed_flips[i]
+  # Likelihood
+  likelihood <- if (x == 1) theta_vals else (1 - theta_vals)
+  # Bayes rule
+  unnorm_posterior <- likelihood * prior
+  posterior <- unnorm_posterior / sum(unnorm_posterior)
+  # record
+  posterior_history[i, ] <- posterior
+  # next prior = current posterior
+  prior <- posterior
+}
+
+# transfer the recoreded data into a data frame
+df1 <- as.data.frame(posterior_history)
+colnames(df1) <- paste0("theta_", theta_vals)
+df1$step <- 1:n
+df1_long <- pivot_longer(df1, cols = starts_with("theta_"), names_to = "theta", values_to = "posterior")
+
+# plot the graph
+ggplot(df1_long, aes(x = step, y = posterior, color = theta)) +
+  geom_line(linewidth = 1) +
+  labs(title = paste("Posterior update over time (p_true =", p_true1, ")"),
+       x = "Number of Flips",
+       y = "Posterior Probability",
+       color = expression(theta))
+
+
+
+
+
+
+
+
+# set the values of theta
+theta_vals <- c(0.2, 0.5, 0.8)
+# repeat 100 times
+n <- 100
+# set the true p value at 0.5 at this time
+p_true2 <- 0.5
+
+# set the seed to keep reproducibility
+set.seed(123)
+# the results of flips are in a binomial distribution
+observed_flips <- rbinom(n, size = 1, prob = p_true2)
+
+# initialize the priors
+prior <- rep(1/3, 3)  # 3 thetas
+posterior_history <- matrix(NA, nrow = n, ncol = 3)
+
+# update it gradually
+for (i in 1:n) {
+  x <- observed_flips[i]
+  # Likelihood
+  likelihood <- if (x == 1) theta_vals else (1 - theta_vals)
+  # Bayes rule
+  unnorm_posterior <- likelihood * prior
+  posterior <- unnorm_posterior / sum(unnorm_posterior)
+  # record
+  posterior_history[i, ] <- posterior
+  # next prior = current posterior
+  prior <- posterior
+}
+
+# transfer the recoreded data into a data frame
+df2 <- as.data.frame(posterior_history)
+colnames(df2) <- paste0("theta_", theta_vals)
+df2$step <- 1:n
+df2_long <- pivot_longer(df2, cols = starts_with("theta_"), names_to = "theta", values_to = "posterior")
+
+# plot the graph
+ggplot(df2_long, aes(x = step, y = posterior, color = theta)) +
+  geom_line(linewidth = 1) +
+  labs(title = paste("Posterior update over time (p_true =", p_true2, ")"),
+       x = "Number of Flips",
+       y = "Posterior Probability",
+       color = expression(theta))
+```
+
+### (d)
+```{r}
+# No idea temporarily
+```
+
+## Problem 3
+### (c)
+```{r}
+# define a function for the cases n = 100 and n = 1000
+run_simulation <- function(n) {
+  # keep the result reproducible
+  set.seed(123) 
+  
+  # generate the data based on the uniform distribution of x and normal distribution of error
+  X <- runif(n, min = 0, max = 10)
+  # the epsilon, error is in the normal distribution
+  epsilon <- rnorm(n, mean = 0, sd = 2)
+  # this is the linear model of the regression line
+  Y <- 2 + 3 * X + epsilon
+  
+  # draw the best fit line based on the sample points
+  model <- lm(Y ~ X)
+  # summarize the important parameters
+  summary_model <- summary(model)
+  
+  print(paste("n =", n))
+  
+  # print the summarized coefficients
+  print("(ii) Coefficients:")
+  print(coef(summary_model))
+  
+  # get the residual standard error
+  rse <- summary_model$sigma
+  print("(iii) Residual Standard Error:")
+  print(rse)
+  print("True sigma: 2")
+  
+  # set a 95% confidence interval
+  print("(iv) 95% Confidence Intervals:")
+  print(confint(model))
+  
+  # make a hypothesis test. H0: beta_1 = 0
+  t_stat <- coef(summary_model)["X", "t value"]
+  p_val <- coef(summary_model)["X", "Pr(>|t|)"]
+  print("(v) t-statistic and p-value:")
+  print(paste("t =", round(t_stat, 4)))
+  print(paste("p =", round(p_val, 4)))
+  
+  if (p_val < 0.05) {
+    print("Reject H0: beta_1 is significantly different from 0")
+  } else {
+    print("Fail to reject H0: beta_1 is not significantly different from 0")
+  }
+  
+  # calculate the R squared
+  r_squared <- summary_model$r.squared
+  print("(vi) R-squared:")
+  print(r_squared)
+  print(paste("Interpretation: ", round(r_squared * 100, 2), "% of the variance in Y is explained by X."))
+}
+
+# execute n = 100 and n = 1000 times
+run_simulation(100)
+run_simulation(1000)
+```
+
+### (d)
+```{r}
+# define a function for the cases n = 100 and n = 1000
+run_quadratic_simulation <- function(n) {
+  # keep the result reproducible
+  set.seed(123) 
+  
+  # generate the data based on the uniform distribution of x and normal distribution of error
+  X <- runif(n, min = 0, max = 10)
+  epsilon <- rnorm(n, mean = 0, sd = 2)
+  
+  # the mathematical model is quadratic
+  Y <- 2 + 3 * X^2 + epsilon
+  # the required fitted model is still a linear model
+  model <- lm(Y ~ X)
+  # summarize the important parameters
+  summary_model <- summary(model)
+  
+  print(paste("n =", n, "(quadratic data, linear fit)"))
+  
+  # print the summarized coefficients
+  print("(ii) Coefficients:")
+  print(coef(summary_model))
+  
+  # get the residual standard error
+  rse <- summary_model$sigma
+  print("(iii) Residual Standard Error:")
+  print(rse)
+  print("True sigma: 2")
+  
+  # set a 95% confidence interval
+  print("(iv) 95% Confidence Intervals:")
+  print(confint(model))
+  
+  # make a hypothesis test. H0: beta_1 = 0
+  t_stat <- coef(summary_model)["X", "t value"]
+  p_val <- coef(summary_model)["X", "Pr(>|t|)"]
+  print("(v) t-statistic and p-value:")
+  print(paste("t =", round(t_stat, 4)))
+  print(paste("p =", round(p_val, 4)))
+  
+  if (p_val < 0.05) {
+    print("Reject H0: beta_1 is significantly different from 0")
+  } else {
+    print("Fail to reject H0: beta_1 is not significantly different from 0")
+  }
+  
+  # calculate the R squared
+  r_squared <- summary_model$r.squared
+  print("(vi) R-squared:")
+  print(r_squared)
+  print(paste("Interpretation: ", round(r_squared * 100, 2), "% of the variance in Y is (wrongly) explained by X."))
+}
+
+# execute n = 100 and n = 1000 times
+run_quadratic_simulation(100)
+run_quadratic_simulation(1000)
+```
+
+## Problem 4
+### (a)
+```{r}
+# keep the result reproducible
+set.seed(123)
+
+# Simulate data: true relationship is linear
+n <- 100
+X <- runif(n, 0, 10)  # X ~ Uniform(0, 10)
+epsilon <- rnorm(n, 0, 2)  # error = epsilon ~ N(0, 2^2)
+Y <- 5 + 2 * X + epsilon  # true model: linear
+
+# Fit a linear regression model
+model_linear <- lm(Y ~ X)
+rss_linear <- sum(resid(model_linear)^2)  # Residual Sum of Squares (RSS)
+
+# Fit a cubic regression model (adds X^2 and X^3 terms)
+model_cubic <- lm(Y ~ X + I(X^2) + I(X^3))
+rss_cubic <- sum(resid(model_cubic)^2)
+
+# Print RSS results
+print(paste("Linear model RSS:", round(rss_linear, 4)))
+print(paste("Cubic model RSS:", round(rss_cubic, 4)))
+```
+
+### (b)
+```{r}
+# keep the result reproducible
+set.seed(123)
+
+# training the linear model with 100 points
+n_train <- 100
+X_train <- runif(n_train, 0, 10)
+epsilon_train <- rnorm(n_train, 0, 2)
+Y_train <- 5 + 2 * X_train + epsilon_train  # true linear model
+
+# Generate test data (unknown by model)
+n_test <- 1000
+X_test <- runif(n_test, 0, 10)
+epsilon_test <- rnorm(n_test, 0, 2)
+Y_test <- 5 + 2 * X_test + epsilon_test
+
+# Fit models on both the two training data
+model_linear <- lm(Y_train ~ X_train)
+model_cubic <- lm(Y_train ~ X_train + I(X_train^2) + I(X_train^3))
+
+# Predict on test data, both linear and cubic
+pred_linear <- predict(model_linear, newdata = data.frame(X_train = X_test))
+pred_cubic <- predict(model_cubic, newdata = data.frame(X_train = X_test))
+
+# Compute test RSS
+rss_linear_test <- sum((Y_test - pred_linear)^2)
+rss_cubic_test <- sum((Y_test - pred_cubic)^2)
+
+# Print test RSS
+print(paste("Linear model test RSS:", round(rss_linear_test, 2)))
+print(paste("Cubic model test RSS:", round(rss_cubic_test, 2)))
+```
+
+### (c)
+```{r}
+# ----- (i) Linear data -----
+set.seed(123)
+
+# Generate training data
+n_train <- 100
+X_train <- runif(n_train, 0, 10)
+epsilon_train <- rnorm(n_train, 0, 2)
+Y_train <- 5 + 2 * X_train + epsilon_train  # true linear model
+
+# Generate test data
+n_test <- 1000
+X_test <- runif(n_test, 0, 10)
+epsilon_test <- rnorm(n_test, 0, 2)
+Y_test <- 5 + 2 * X_test + epsilon_test
+
+# Fit linear and cubic models
+model_linear <- lm(Y_train ~ X_train)
+model_cubic <- lm(Y_train ~ X_train + I(X_train^2) + I(X_train^3))
+
+# Predict on training data
+pred_train_linear <- predict(model_linear)
+pred_train_cubic <- predict(model_cubic)
+
+# Predict on test data
+pred_test_linear <- predict(model_linear, newdata = data.frame(X_train = X_test))
+pred_test_cubic <- predict(model_cubic, newdata = data.frame(X_train = X_test))
+
+# Compute training RSS
+rss_train_linear <- sum((Y_train - pred_train_linear)^2)
+rss_train_cubic <- sum((Y_train - pred_train_cubic)^2)
+
+# Compute test RSS
+rss_test_linear <- sum((Y_test - pred_test_linear)^2)
+rss_test_cubic <- sum((Y_test - pred_test_cubic)^2)
+
+# Print results
+print("(i) Linear Data, n = 100")
+print(paste("Training RSS - Linear:", round(rss_train_linear, 2)))
+print(paste("Training RSS - Cubic :", round(rss_train_cubic, 2)))
+print(paste("Test RSS - Linear:", round(rss_test_linear, 2)))
+print(paste("Test RSS - Cubic :", round(rss_test_cubic, 2)))
+
+
+
+
+
+# ----- (ii) Nonlinear data -----
+set.seed(123)
+
+# Generate training data
+X_train <- runif(n_train, 0, 10)
+epsilon_train <- rnorm(n_train, 0, 2)
+Y_train <- 0.5 * X_train^2 + 2 * sin(X_train) + epsilon_train
+
+# Generate test data
+X_test <- runif(n_test, 0, 10)
+epsilon_test <- rnorm(n_test, 0, 2)
+Y_test <- 0.5 * X_test^2 + 2 * sin(X_test) + epsilon_test
+
+# Fit models
+model_linear <- lm(Y_train ~ X_train)
+model_cubic <- lm(Y_train ~ X_train + I(X_train^2) + I(X_train^3))
+
+# Predict
+pred_train_linear <- predict(model_linear)
+pred_train_cubic <- predict(model_cubic)
+pred_test_linear <- predict(model_linear, newdata = data.frame(X_train = X_test))
+pred_test_cubic <- predict(model_cubic, newdata = data.frame(X_train = X_test))
+
+# RSS
+rss_train_linear <- sum((Y_train - pred_train_linear)^2)
+rss_train_cubic <- sum((Y_train - pred_train_cubic)^2)
+rss_test_linear <- sum((Y_test - pred_test_linear)^2)
+rss_test_cubic <- sum((Y_test - pred_test_cubic)^2)
+
+# Print
+print("(ii) Nonlinear Data, n = 100")
+print(paste("Training RSS - Linear:", round(rss_train_linear, 2)))
+print(paste("Training RSS - Cubic :", round(rss_train_cubic, 2)))
+print(paste("Test RSS - Linear:", round(rss_test_linear, 2)))
+print(paste("Test RSS - Cubic :", round(rss_test_cubic, 2)))
+
+
+
+
+
+
+# ----- (iii) Linear Data, n = 10 -----
+set.seed(123)
+
+# Generate training data
+n_train <- 10
+X_train <- runif(n_train, 0, 10)
+epsilon_train <- rnorm(n_train, 0, 2)
+Y_train <- 5 + 2 * X_train + epsilon_train  # True linear model
+
+# Generate test data
+n_test <- 1000
+X_test <- runif(n_test, 0, 10)
+epsilon_test <- rnorm(n_test, 0, 2)
+Y_test <- 5 + 2 * X_test + epsilon_test
+
+# Fit models
+model_linear <- lm(Y_train ~ X_train)
+model_cubic <- lm(Y_train ~ X_train + I(X_train^2) + I(X_train^3))
+
+# Predict on training and test data
+pred_train_linear <- predict(model_linear)
+pred_train_cubic <- predict(model_cubic)
+pred_test_linear <- predict(model_linear, newdata = data.frame(X_train = X_test))
+pred_test_cubic <- predict(model_cubic, newdata = data.frame(X_train = X_test))
+
+# Compute RSS
+rss_train_linear <- sum((Y_train - pred_train_linear)^2)
+rss_train_cubic <- sum((Y_train - pred_train_cubic)^2)
+rss_test_linear <- sum((Y_test - pred_test_linear)^2)
+rss_test_cubic <- sum((Y_test - pred_test_cubic)^2)
+
+# Print results
+print("(iii) Linear Data, n = 10")
+print(paste("Training RSS - Linear:", round(rss_train_linear, 2)))
+print(paste("Training RSS - Cubic :", round(rss_train_cubic, 2)))
+print(paste("Test RSS - Linear:", round(rss_test_linear, 2)))
+print(paste("Test RSS - Cubic :", round(rss_test_cubic, 2)))
+
+
+
+
+
+# ----- (iv) Nonlinear Data, n = 10 -----
+set.seed(123)
+
+# Generate training data
+n_train <- 10
+X_train <- runif(n_train, 0, 10)
+epsilon_train <- rnorm(n_train, 0, 2)
+Y_train <- 0.5 * X_train^2 + 2 * sin(X_train) + epsilon_train  # True nonlinear model
+
+# Generate test data
+n_test <- 1000
+X_test <- runif(n_test, 0, 10)
+epsilon_test <- rnorm(n_test, 0, 2)
+Y_test <- 0.5 * X_test^2 + 2 * sin(X_test) + epsilon_test
+
+# Fit models
+model_linear <- lm(Y_train ~ X_train)
+model_cubic <- lm(Y_train ~ X_train + I(X_train^2) + I(X_train^3))
+
+# Predict on training and test data
+pred_train_linear <- predict(model_linear)
+pred_train_cubic <- predict(model_cubic)
+pred_test_linear <- predict(model_linear, newdata = data.frame(X_train = X_test))
+pred_test_cubic <- predict(model_cubic, newdata = data.frame(X_train = X_test))
+
+# Compute RSS
+rss_train_linear <- sum((Y_train - pred_train_linear)^2)
+rss_train_cubic <- sum((Y_train - pred_train_cubic)^2)
+rss_test_linear <- sum((Y_test - pred_test_linear)^2)
+rss_test_cubic <- sum((Y_test - pred_test_cubic)^2)
+
+# Print results
+print("(iv) Nonlinear Data, n = 10")
+print(paste("Training RSS - Linear:", round(rss_train_linear, 2)))
+print(paste("Training RSS - Cubic :", round(rss_train_cubic, 2)))
+print(paste("Test RSS - Linear:", round(rss_test_linear, 2)))
+print(paste("Test RSS - Cubic :", round(rss_test_cubic, 2)))
+```
+
+

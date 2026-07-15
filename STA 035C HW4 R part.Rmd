@@ -1,0 +1,700 @@
+---
+title: 'STA 035C Homework 4: R Part'
+author: "Yuan Xie"
+date: "2025-05-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+```
+
+---
+
+## Problem 1
+### (a)
+```{r}
+# generate the data
+set.seed(123)
+n <- 100
+X <- rnorm(n)
+log_odds <- -2 - 3*X
+probs <- 1 / (1 + exp(-log_odds))
+Y <- rbinom(n, 1, probs)
+df <- data.frame(X, Y=as.factor(Y))
+
+# draw the scatterplot
+df %>% ggplot(aes(x = X, y = Y, color = Y)) +
+  geom_jitter(height = 0.05, width = 0, size = 2) +
+  labs(title = "Scatterplot of X vs. Y (0/1 Classes)",
+       x = "X", 
+       y = "Y (Class 0 or 1)")
+```
+
+### (b)
+```{r}
+set.seed(1)
+n_sim <- 100
+errors <- numeric(n_sim)
+for (i in 1:n_sim) {
+  # randomly divide the data
+  idx <- sample(1:nrow(df), size = nrow(df) / 2)
+  train <- df[idx, ]
+  test <- df[-idx, ]
+  
+  # fit the logistic regression model
+  model <- glm(Y ~ X, data = train, family = binomial)
+  
+  # predict the probability
+  probs <- predict(model, newdata = test, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  
+  # calculate the error rate
+  error <- mean(preds != test$Y)
+  errors[i] <- error
+}
+
+error_df <- data.frame(ErrorRate = errors)
+error_df %>% ggplot(aes(x = ErrorRate)) +
+  geom_histogram(binwidth = 0.02, fill = "skyblue", color = "black") +
+  labs(title = "Classification Error (100 Splits)",
+       x = "Classification Error Rate",
+       y = "Count")
+
+# calculate the mean, min and max
+mean_err <- mean(errors)
+min_err <- min(errors)
+max_err <- max(errors)
+cat("Mean error:", mean_err, "\n")
+cat("Min error:", min_err, "\n")
+cat("Max error:", max_err, "\n")
+```
+**Interpretation:** Mean error: 0.1506; Min error: 0.08; Max error: 0.22 
+
+### (c)
+```{r}
+n <- nrow(df)
+loocv_errors <- numeric(n)
+
+for (i in 1:n) {
+  train <- df[-i, ]
+  test <- df[i, , drop = FALSE]
+  
+  # fit the logistic regression model
+  model <- glm(Y ~ X, data = train, family = binomial)
+  prob <- predict(model, newdata = test, type = "response")
+  pred <- ifelse(prob > 0.5, "1", "0")
+  
+  loocv_errors[i] <- pred != test$Y
+}
+
+# LOOCV error rate
+loocv_error_rate <- mean(loocv_errors)
+
+# compare the output
+cat("LOOCV Error Rate:", loocv_error_rate, "\n")
+cat("Mean Error from (b):", mean(errors), "\n")
+cat("Variance of Error from (b):", var(errors), "\n")
+```
+**Interpretation:** Compared to the error rate of random 50/50 splits, the LOOCV method provided a slightly higher error but with greater stability.
+
+### (d)
+```{r}
+set.seed(1)
+
+# set the values of k
+k_values <- c(2, 3, 4, 5, 10, 20)
+cv_errors <- numeric(length(k_values))
+
+for (i in seq_along(k_values)) {
+  k <- k_values[i]
+  n <- nrow(df)
+  folds <- sample(rep(1:k, length.out = n))
+  fold_errors <- numeric(k)
+  
+  for (j in 1:k) {
+    test_idx <- which(folds == j)
+    train_data <- df[-test_idx, ]
+    test_data <- df[test_idx, ]
+    
+    # set the logistic regression model
+    model <- glm(Y ~ X, data = train_data, family = binomial)
+    probs <- predict(model, newdata = test_data, type = "response")
+    preds <- ifelse(probs > 0.5, "1", "0")
+    
+    fold_errors[j] <- mean(preds != test_data$Y)
+  }
+  
+  cv_errors[i] <- mean(fold_errors)
+}
+
+cv_df <- data.frame(k = k_values, ErrorRate = cv_errors)
+print(cv_df)
+
+# plot the point and line graph
+cv_df %>% ggplot(aes(x = k, y = ErrorRate)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(title = "k-Fold CV Classification Error",
+       x = "Number of Folds (k)",
+       y = "Classification Error Rate")
+```
+**Interpretation:**  The resulting classification error rates are shown in the tibble above. The highest classification error occurred at k = 3, with an error rate above 18%. The lowest error was observed at both k = 2 and k = 4, with error rates close to 15%. After k becomes equal or larger than 5, the error stabilizes around 16%.
+
+### (e)
+```{r}
+######### code in this part is generally the same except adding the quadratic term
+
+# generate data with quadratic term X^2
+set.seed(123)
+n <- 100
+X <- rnorm(n)
+X2 <- X^2
+log_odds <- -2 - 3 * X + X^2
+probs <- 1 / (1 + exp(-log_odds))
+Y <- rbinom(n, 1, probs)
+df2 <- data.frame(X = X, X2 = X2, Y = as.factor(Y))
+
+
+### repeat (b)
+set.seed(1)
+n_sim <- 100
+errors2 <- numeric(n_sim)
+
+for (i in 1:n_sim) {
+  idx <- sample(1:nrow(df2), size = nrow(df2) / 2)
+  train <- df2[idx, ]
+  test <- df2[-idx, ]
+  
+  model <- suppressWarnings(glm(Y ~ X + X2, data = train, family = binomial))
+  probs <- predict(model, newdata = test, type = "response")
+  preds <- ifelse(probs > 0.5, "1", "0")
+  
+  error <- mean(preds != test$Y)
+  errors2[i] <- error
+}
+
+# draw the histogram
+data.frame(ErrorRate = errors2) %>%
+  ggplot(aes(x = ErrorRate)) +
+  geom_histogram(binwidth = 0.02, fill = "skyblue", color = "black") +
+  labs(title = "Classification Error with Quadratic Term (100 Splits)",
+       x = "Classification Error Rate",
+       y = "Count")
+
+# output summary
+cat("Mean error (quad):", mean(errors2), "\n")
+cat("Min error (quad):", min(errors2), "\n")
+cat("Max error (quad):", max(errors2), "\n")
+
+
+
+
+### repeat (c)
+n <- nrow(df2)
+loocv_errors2 <- numeric(n)
+
+for (i in 1:n) {
+  train <- df2[-i, ]
+  test <- df2[i, , drop = FALSE]
+  
+  model <- suppressWarnings(glm(Y ~ X + X2, data = train, family = binomial))
+  prob <- predict(model, newdata = test, type = "response")
+  pred <- ifelse(prob > 0.5, "1", "0")
+  
+  loocv_errors2[i] <- pred != test$Y
+}
+
+# output summary
+cat("LOOCV Error Rate (quad):", mean(loocv_errors2), "\n")
+cat("Mean Error from (b):", mean(errors2), "\n")
+cat("Variance of Error from (b):", var(errors2), "\n")
+
+
+
+
+### repeat (d)
+set.seed(1)
+k_values <- c(2, 3, 4, 5, 10, 20)
+cv_errors2 <- numeric(length(k_values))
+
+for (i in seq_along(k_values)) {
+  k <- k_values[i]
+  folds <- sample(rep(1:k, length.out = n))
+  fold_errors <- numeric(k)
+  
+  for (j in 1:k) {
+    test_idx <- which(folds == j)
+    train_data <- df2[-test_idx, ]
+    test_data <- df2[test_idx, ]
+    
+    model <- suppressWarnings(glm(Y ~ X + X2, data = train_data, family = binomial))
+    probs <- predict(model, newdata = test_data, type = "response")
+    preds <- ifelse(probs > 0.5, "1", "0")
+    
+    fold_errors[j] <- mean(preds != test_data$Y)
+  }
+  
+  cv_errors2[i] <- mean(fold_errors)
+}
+
+cv_df2 <- data.frame(k = k_values, ErrorRate = cv_errors2)
+print(cv_df2)
+
+# plot the point and line graph
+cv_df2 %>% ggplot(aes(x = k, y = ErrorRate)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(title = "k-Fold CV with Quadratic Term",
+       x = "Number of Folds (k)",
+       y = "Classification Error Rate")
+```
+**Interpretation:** Repeat (b): Mean error: 0.151; Min error: 0.08; Max error: 0.24. Repeat (c): Compared to the error rate of random 50/50 splits, the LOOCV method provided a slightly lower error but with greater stability. Repeat (c): The resulting classification error rates are shown in the tibble above. The highest classification error occurred at k = 4, with an error rate 16%. The lowest error was observed at both k = 3, with an error rate about 13.1%. When k is between 5 and 10, the error stabilizes around 15%. When k is between 10 and 20, the error rate gradually decreases from 15% to 14%.
+
+---
+
+## Problem 2
+### (c)
+```{r}
+coverage <- numeric(1000)
+
+# set a for loop for the seeds
+for (k in 1:1000) {
+  set.seed(k)
+  x <- rnorm(100)
+  y <- -1 + 2 * x + rnorm(100)
+  
+  model <- lm(y ~ x)
+  conf_int <- confint(model, level = 0.95)
+  lower <- conf_int["x", 1]
+  upper <- conf_int["x", 2]
+  
+  # whether it includes true beta = 2
+  coverage[k] <- (lower <= 2) & (2 <= upper)
+}
+
+# calculate the coverage rate
+coverage_rate <- mean(coverage)
+cat("95% CI coverage rate for beta = 2:", coverage_rate, "\n")
+```
+**Interpretation:** The fraction of these covering the true slope is 0.951 and it is quite close to 0.95.
+
+### (d)
+```{r}
+set.seed(1)
+
+n_datasets <- 1000
+n_boot <- 1000
+n <- 100
+true_beta1 <- 2
+bootstrap_coverage <- numeric(n_datasets)
+
+for (k in 1:n_datasets) {
+  set.seed(k)
+  x <- rnorm(n)
+  y <- -1 + 2 * x + rnorm(n)
+  df <- data.frame(x = x, y = y)
+
+  # make the model
+  model <- lm(y ~ x, data = df)
+  beta1_hat <- coef(model)[["x"]]
+  
+  # bootstrap and repeat 1000 times
+  beta1_star <- numeric(n_boot)
+  for (b in 1:n_boot) {
+    boot_idx <- sample(1:n, size = n, replace = TRUE)
+    boot_df <- df[boot_idx, ]
+    boot_model <- lm(y ~ x, data = boot_df)
+    beta1_star[b] <- coef(boot_model)[["x"]]
+  }
+  
+  # bootstrap standard deviation and make normal-based CI
+  boot_se <- sd(beta1_star)
+  
+  # show the first 10 standard deviations
+  if (k <= 10) {
+    cat("Simulation", k, "- Bootstrap SD:", boot_se, "\n")
+  }
+  
+  ci_lower <- beta1_hat - qnorm(0.975) * boot_se
+  ci_upper <- beta1_hat + qnorm(0.975) * boot_se
+  
+  # whether it contains true beta = 2
+  bootstrap_coverage[k] <- (ci_lower <= true_beta1) & (true_beta1 <= ci_upper)
+}
+
+# output coverage rate
+boot_coverage_rate <- mean(bootstrap_coverage)
+cat("Bootstrap 95% CI coverage rate for beta = 2:", boot_coverage_rate, "\n")
+```
+**Interpretation:** Now, the fraction of these covering the true slope is 0.932, which is slightly smaller than 95%. However, the value in (b) is 0.951, which is slightly bigger than 95%. The bootstrap confidence intervals may not be normally distributed.
+
+### (d)
+```{r}
+##### the code of this part is similar to (c) and (d)
+
+### (e/c) Standard 95% CI under nonlinear model
+coverage <- numeric(1000)
+
+for (k in 1:1000) {
+  set.seed(k)
+  x <- rnorm(100)
+  y <- -1 + 2 * x - x^2 + rnorm(100)  # nonlinear data
+  
+  model <- lm(y ~ x)
+  conf_int <- confint(model, level = 0.95)
+  lower <- conf_int["x", 1]
+  upper <- conf_int["x", 2]
+  
+  # whether it contains true beta = 2
+  coverage[k] <- (lower <= 2) & (2 <= upper)
+}
+
+# final coverage rate
+coverage_rate <- mean(coverage)
+cat("Standard 95% CI coverage rate for beta = 2 (nonlinear):", coverage_rate, "\n")
+
+
+### (e/d) Bootstrap normal CI under nonlinear model
+set.seed(1)
+
+n_datasets <- 1000
+n_boot <- 1000
+n <- 100
+true_beta1 <- 2
+bootstrap_coverage <- numeric(n_datasets)
+
+for (k in 1:n_datasets) {
+  set.seed(k)
+  x <- rnorm(n)
+  y <- -1 + 2 * x - x^2 + rnorm(n)  # nonlinear data
+  df <- data.frame(x = x, y = y)
+
+  model <- lm(y ~ x, data = df)
+  beta1_hat <- coef(model)[["x"]]
+  
+  beta1_star <- numeric(n_boot)
+  for (b in 1:n_boot) {
+    boot_idx <- sample(1:n, size = n, replace = TRUE)
+    boot_df <- df[boot_idx, ]
+    boot_model <- lm(y ~ x, data = boot_df)
+    beta1_star[b] <- coef(boot_model)[["x"]]
+  }
+  
+  # standard deviation and CI
+  boot_se <- sd(beta1_star)
+  if (k <= 10) {
+    cat("Simulation", k, "- Bootstrap SD:", boot_se, "\n")
+  }
+  
+  ci_lower <- beta1_hat - qnorm(0.975) * boot_se
+  ci_upper <- beta1_hat + qnorm(0.975) * boot_se
+  
+  bootstrap_coverage[k] <- (ci_lower <= true_beta1) & (true_beta1 <= ci_upper)
+}
+
+# final bootstrap coverage
+boot_coverage_rate <- mean(bootstrap_coverage)
+cat("Bootstrap 95% CI coverage rate for beta = 2 (nonlinear):", boot_coverage_rate, "\n")
+```
+**Interpretation:** The repeated (c) and (d) values become obviously smaller (0.683 and 0.894). This is because the real model is actually linear and the model we chose is wrong. Bootstrap performs better in this case because it resamples based on the data generated. It partly relieves the problem of wrong model. However, both the fractions here are smaller than 95%.
+
+---
+
+## Problem 3
+### (b)(i)
+```{r}
+# input the dataset and relative packages
+credit <- read_csv("Credit.csv")
+head(credit)
+
+# for combinations()
+library(gtools)  
+
+# set the response variable
+response_var <- "Balance"
+predictors <- setdiff(names(credit), response_var)
+
+# store all the RSS and k values
+all_models <- list()
+
+for (k in 1:length(predictors)) {
+  combos <- combinations(n = length(predictors), r = k, v = predictors)
+  
+  for (i in 1:nrow(combos)) {
+    vars <- combos[i, ]
+    formula <- as.formula(paste(response_var, "~", paste(vars, collapse = "+")))
+    fit <- lm(formula, data = credit)
+    rss <- sum(residuals(fit)^2)
+    
+    all_models[[length(all_models) + 1]] <- data.frame(
+      k = k,
+      RSS = rss,
+      Variables = paste(vars, collapse = ", ")
+    )
+  }
+}
+
+# store these data into one data frame
+all_models_df <- bind_rows(all_models)
+
+# plot the graph
+ggplot(all_models_df, aes(x = k, y = RSS)) +
+  geom_jitter(width = 0.2, height = 0, color = "blue", alpha = 0.6) +
+  labs(
+    title = "RSS for All Subsets vs. Subset Size k",
+    x = "Subset Size k",
+    y = "Residual Sum of Squares (RSS)"
+  )
+```
+**Interpretation:** This is the scatter plot of RSS versus subset size k for all subsets.
+
+### (b)(ii)
+```{r}
+library(leaps)
+
+response_var <- "Balance"
+predictors <- setdiff(names(credit), response_var)
+
+# make the formula
+formula <- as.formula(paste(response_var, "~", paste(predictors, collapse = "+")))
+
+# do the best subset selection
+regfit.full <- regsubsets(formula, data = credit, nvmax = length(predictors))
+
+# get the RSS data
+reg_summary <- summary(regfit.full)
+
+# make a data frame to plot the graph
+rss_df <- data.frame(
+  k = 1:length(reg_summary$rss),
+  RSS = reg_summary$rss
+)
+
+which_mat <- summary(regfit.full)$which[, -1]
+
+# get the variable names 
+var_names <- apply(which_mat, 1, function(row) {
+  paste(names(row)[row], collapse = ", ")
+})
+
+rss_df_full <- rss_df %>%
+  mutate(Variables = var_names)
+
+# get the smallest RSS
+rss_df_full %>%
+  group_by(k) %>%
+  arrange(k)
+```
+**Interpretation:** For each k, the subsets with the lowest RSS are shown in the data frame above.
+
+### (b)(iii)
+```{r}
+best_index <- which.max(reg_summary$adjr2)
+
+# choose the row
+which_row <- reg_summary$which[best_index, ]
+
+# choose the names of the predictors
+best_variables <- names(which_row)[which_row]
+best_variables <- setdiff(best_variables, "(Intercept)")
+
+cat("Adjusted R^2 is maximized at subset size k =", best_index, "\n")
+cat("Best subset variables:", paste(best_variables, collapse = ", "))
+```
+**Interpretation:** The adjusted R-squared is maximized when k = 7. The best subset variables are: Income, Limit, Rating, Cards, Age, OwnYes, StudentYes.
+
+### (b)(iv)
+```{r}
+set.seed(1) # reproducibility
+
+predict_regsubsets <- function(object, newdata, id) {
+  mat <- model.matrix(formula, newdata)
+  coefi <- coef(object, id = id)
+  vars <- names(coefi)
+  mat[, vars] %*% coefi
+}
+
+# 5-fold CV set
+k <- 5
+folds <- sample(1:k, nrow(credit), replace = TRUE)
+cv_errors <- matrix(NA, k, length(predictors))
+
+# train and test for every fold
+for (j in 1:k) {
+  train <- credit[folds != j, ]
+  test  <- credit[folds == j, ]
+  
+  regfit.k <- regsubsets(formula, data = train, nvmax = length(predictors))
+  
+  for (i in 1:length(predictors)) {
+    pred <- predict_regsubsets(regfit.k, newdata = test, id = i)
+    true <- test[[response_var]]
+    cv_errors[j, i] <- mean((true - pred)^2)
+  }
+}
+
+# mean MSE for each k
+mean_cv_errors <- colMeans(cv_errors)
+best_k_cv <- which.min(mean_cv_errors)
+
+# best cross validation variables
+coef_vec <- coef(regfit.full, id = best_k_cv)
+best_cv_vars <- names(coef_vec)[-1]  # no intercept
+
+cat("Best subset size by 5-fold CV is:", best_k_cv, "\n")
+cat("Best subset variables by CV:", paste(best_cv_vars, collapse = ", "))
+```
+**Interpretation:** The answer here is different from the previous question. The best model by 5-fold cross-validation has 6 predicting variables. The best subset variables are: Income, Limit, Rating, Cards, Age, StudentYes. 
+
+### (c)
+```{r}
+# Forward Stepwise Selection
+regfit.fwd <- regsubsets(formula, data = credit, nvmax = length(predictors), method = "forward")
+fwd_summary <- summary(regfit.fwd)
+
+fwd_which <- fwd_summary$which[, -1]  # remove intercept
+fwd_vars <- apply(fwd_which, 1, function(row) {
+  paste(names(row)[row], collapse = ", ")
+})
+
+# store in a data frame
+fwd_df <- data.frame(
+  k = 1:length(fwd_vars),
+  Variables = fwd_vars
+)
+
+# show the output
+fwd_df
+```
+**Interpretation:** They are roughly the same, but when k = 4, "Rating" is included here instead of "Cards". Some small difference still exists.
+
+---
+
+## Problem 4
+### (b)(a)
+```{r}
+# input the dataset and relative packages
+college <- read_csv("College.csv") %>% select(-1)
+head(college)
+
+set.seed(1) # reproducibility
+train_index <- sample(1:nrow(college), 0.7 * nrow(college))
+
+# divide into two groups
+train_data <- college[train_index, ]
+test_data <- college[-train_index, ]
+```
+**Interpretation:** The dataset has been divided into a training set and a test set here.
+
+### (b)(b)
+```{r}
+# fit the two linear models
+lm_fit <- lm(Apps ~ ., data = train_data)
+lm_preds <- predict(lm_fit, newdata = test_data)
+
+# calculate the test MSE
+test_mse <- mean((test_data$Apps - lm_preds)^2)
+# output the test MSE
+test_mse
+```
+**Interpretation:** The test MSE obtained is 1261630.
+
+### (b)(c)
+```{r}
+suppressPackageStartupMessages(library(glmnet))
+
+X_train <- model.matrix(Apps ~ ., data = train_data)[, -1]  # remove intercept
+y_train <- train_data$Apps
+
+X_test <- model.matrix(Apps ~ ., data = test_data)[, -1]
+y_test <- test_data$Apps
+
+# use cross-validation
+set.seed(1)
+cv_ridge <- cv.glmnet(
+  X_train, y_train, 
+  alpha = 0,                 # ridge regression
+  standardize = TRUE        # standardization
+)
+
+# best fit lambda
+best_lambda <- cv_ridge$lambda.min
+ridge_fit <- glmnet(X_train, y_train, alpha = 0, lambda = best_lambda)
+
+# predict based on the dataset
+ridge_preds <- predict(ridge_fit, s = best_lambda, newx = X_test)
+
+# calculate the ridge test MSE
+ridge_test_mse <- mean((y_test - ridge_preds)^2)
+ridge_test_mse
+```
+**Interpretation:** The ridge regression test MSE is 1121808.
+
+### (b)(d)
+```{r}
+# Prepare x, y for glmnet (no intercept => '-1')
+X_train <- model.matrix(Apps ~ . - 1, data = train_data)
+y_train <- train_data$Apps
+
+X_test <- model.matrix(Apps ~ . - 1, data = test_data)
+y_test <- test_data$Apps
+
+# Cross-validation to find optimal lambda
+set.seed(1)
+cv_lasso <- cv.glmnet(
+  X_train, y_train,
+  alpha = 1,                  # Lasso
+  intercept = FALSE,
+  standardize = TRUE
+)
+
+# Best lambda
+best_lambda_lasso <- cv_lasso$lambda.min
+
+# Fit Lasso with best lambda
+lasso_fit <- glmnet(
+  X_train, y_train,
+  alpha = 1,
+  lambda = best_lambda_lasso,
+  intercept = FALSE,
+  standardize = TRUE
+)
+
+# Print Lasso Coefficients
+cat("Lasso Coeffs (lambda =", best_lambda_lasso, ")",
+    as.matrix(coef(lasso_fit)), "\n")
+
+# Predict and calculate test MSE
+lasso_preds <- predict(lasso_fit, s = best_lambda_lasso, newx = X_test)
+lasso_test_mse <- mean((y_test - lasso_preds)^2)
+cat("Lasso Test MSE:", lasso_test_mse, "\n")
+
+# Count non-zero coefficients (excluding intercept)
+num_nonzero <- sum(as.matrix(coef(lasso_fit))[-1, ] != 0)
+cat("Number of non-zero coefficients:", num_nonzero)
+```
+**Interpretation:** The Lasso regression test MSE is 1228976. The number of non-zero coefficient is 14.
+
+### (b)(g)
+**Answer:** The models are able to predict the number of applications. The three results are not far apart. The ordinary least squares regression has the highest test error (1261630). Ridge regression gets the lowest test MSE (1121808). Overall, the three models all perform well.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

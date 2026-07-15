@@ -1,0 +1,369 @@
+---
+title: 'STA 035C Homework 6: R Part'
+author: "Yuan Xie"
+date: "2025-05-29"
+output: 
+  pdf_document:
+    keep_tex: no
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+library(MASS)
+```
+
+---
+
+## Problem 1
+### (a)(iii)
+```{r}
+# input these data points
+X <- matrix(c(
+  2, 3,
+  2, 5,
+  3, 6,
+  4, 5,
+  5, 8,
+  6, 10,
+  6, 7,
+  7, 11,
+  7, 9,
+  8, 12
+), ncol = 2, byrow = TRUE)
+
+# use prcomp to execute PCA
+pca_result <- prcomp(X, center = TRUE, scale. = FALSE)
+
+# output the first principal component
+u1 <- pca_result$rotation[,1]
+u1
+```
+**Interpretation:** The first principal component $\textbf{u}_1$ is (0.5856467, 0.8105665).
+
+### (c)(i)
+```{r}
+# generate the data points
+set.seed(111)
+n <- 100
+p <- 25
+mean1 <- c(-2.5, -2.5, rep(0, p-2))
+mean2 <- c(4, rep(0, p-1))
+mean3 <- c(2, 3.5, -1, rep(0, p-3))
+mean4 <- c(2, 3.3, 1, rep(0, p-3))
+# X1 <- matrix(rnorm(n*p, mean=mean1, sd=1.0), n, p)
+# X2 <- matrix(rnorm(n*p, mean=mean2, sd=1.0), n, p)
+# X3 <- matrix(rnorm(n*p, mean=mean3, sd=1.0), n, p)
+# X4 <- matrix(rnorm(n*p, mean=mean4, sd=1.0), n, p)
+X1 <- MASS::mvrnorm(n, mean1, diag(1, nrow = p, ncol = p))
+X2 <- MASS::mvrnorm(n, mean2, diag(1, nrow = p, ncol = p))
+X3 <- MASS::mvrnorm(n, mean3, diag(1, nrow = p, ncol = p))
+X4 <- MASS::mvrnorm(n, mean4, diag(1, nrow = p, ncol = p))
+# Combine a "mixture" of 30 + 30 + 20 + 20 = 100 obs from 4 subgroups
+X <- rbind(X1[1:30,], X2[1:30,], X3[1:20,], X4[1:20,])
+
+# PCA using prcomp()
+pca_result <- prcomp(X, center = TRUE, scale. = FALSE)
+
+# First principal component direction
+u1 <- pca_result$rotation[, 1]
+u1
+
+# Project data onto u1
+proj_scores <- as.vector((scale(X, center = TRUE, scale = FALSE)) %*% u1)
+
+# Compute variance along u1 direction
+directional_variance <- mean(proj_scores^2)
+directional_variance
+```
+**Interpretation:** The first principal component is shown above, which is very long. The directional variance along it is 23.23383.
+
+### (c)(ii)
+```{r}
+sdev <- pca_result$sdev
+
+# variance
+var_explained <- sdev^2
+var_explained_ratio <- var_explained / sum(var_explained)
+
+# make a tiny data frame
+scree_df <- tibble(
+  PC = factor(1:length(var_explained_ratio)),
+  VarianceExplained = var_explained_ratio
+)
+
+# draw Scree Plot
+ggplot(scree_df, aes(x = PC, y = VarianceExplained, group = 1)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1, color = "red") +
+  labs(title = "Scree Plot from PCA Using prcomp()",
+       x = "Principal Component",
+       y = "Proportion of Variance Explained")
+```
+**Interpretation:** The scree plot is shown above.
+
+### (d)(i)
+```{r}
+# generate the data points
+set.seed(111)
+n <- 100
+p <- 25
+mean1 <- c(-2.5, -2.5, rep(0, p-2))
+mean2 <- c(4, rep(0, p-1))
+mean3 <- c(2, 3.5, -1, rep(0, p-3))
+mean4 <- c(2, 3.3, 1, rep(0, p-3))
+# X1 <- matrix(rnorm(n*p, mean=mean1, sd=1.0), n, p)
+# X2 <- matrix(rnorm(n*p, mean=mean2, sd=1.0), n, p)
+# X3 <- matrix(rnorm(n*p, mean=mean3, sd=1.0), n, p)
+# X4 <- matrix(rnorm(n*p, mean=mean4, sd=1.0), n, p)
+X1 <- MASS::mvrnorm(n, mean1, diag(1, nrow = p, ncol = p))
+X2 <- MASS::mvrnorm(n, mean2, diag(1, nrow = p, ncol = p))
+X3 <- MASS::mvrnorm(n, mean3, diag(1, nrow = p, ncol = p))
+X4 <- MASS::mvrnorm(n, mean4, diag(1, nrow = p, ncol = p))
+# Combine a "mixture" of 30 + 30 + 20 + 20 = 100 obs from 4 subgroups
+X <- rbind(X1[1:30,], X2[1:30,], X3[1:20,], X4[1:20,])
+
+# PCA using prcomp()
+pca_result <- prcomp(X, center = TRUE, scale. = FALSE)
+PCs <- as_tibble(pca_result$x[, 1:2])
+
+set.seed(123)  # set reproducibility
+km_orig <- kmeans(X, centers = 4, nstart = 25)
+
+PCs_with_orig_cluster <- PCs %>%
+  mutate(cluster_orig25D = factor(km_orig$cluster))
+
+plot1 <- ggplot(PCs_with_orig_cluster, aes(x = PC1, y = PC2, color = cluster_orig25D)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(title = "K-Means (k = 4) on 25D Data (Visualized in PC1-PC2 Plane)",
+       x = "PC1", y = "PC2", color = "Cluster")
+
+plot1
+```
+**Interpretation:** The results when k = 4 on PC1-PC2 plane are shown above.
+
+### (d)(ii)
+```{r}
+set.seed(123)
+km_pca <- kmeans(PCs, centers = 4, nstart = 25)
+
+PCs_with_pca_cluster <- PCs %>%
+  mutate(cluster_PC = factor(km_pca$cluster))
+
+# plot a graph
+plot2 <- ggplot(PCs_with_pca_cluster, aes(x = PC1, y = PC2, color = cluster_PC)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(title = "K-Means (k = 4) on PC1-PC2 Projected Data",
+       x = "PC1", y = "PC2", color = "Cluster")
+plot2
+```
+**Interpretation:** The data has been projected onto the first two principal components. I have run k-means clustering with k = 4 on these 2D projected points. The separation between points becomes more apparent.
+
+### (d)(iii)
+```{r}
+set.seed(123)
+km_k3 <- kmeans(PCs, centers = 3, nstart = 25)
+
+PCs_k3 <- PCs %>%
+  mutate(cluster_k3 = factor(km_k3$cluster))
+
+# plot the graph
+ggplot(PCs_k3, aes(x = PC1, y = PC2, color = cluster_k3)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(
+    title = "K-Means Clustering with k = 3",
+    subtitle = "Performed on PC1-PC2 Projected Data",
+    x = "PC1", y = "PC2", color = "Cluster"
+  ) 
+
+set.seed(123)
+km_k5 <- kmeans(PCs, centers = 5, nstart = 25)
+
+PCs_k5 <- PCs %>%
+  mutate(cluster_k5 = factor(km_k5$cluster))
+
+# plot the graph
+ggplot(PCs_k5, aes(x = PC1, y = PC2, color = cluster_k5)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(
+    title = "K-Means Clustering with k = 5",
+    subtitle = "Performed on PC1-PC2 Projected Data",
+    x = "PC1", y = "PC2", color = "Cluster"
+  )
+```
+**Interpretation:** We did k-means clustering on the PC1-PC2 projected data when k = 3, k = 4, and k = 5. When the value of k increases, the number of clusters will increase. Some original entire clusters will be divided into two or more clusters.
+
+---
+
+## Problem 2
+### (c)(ii)
+```{r}
+points <- matrix(c(
+  2, 4,   # z1
+  3, 3,   # z2
+  3, 6,   # z3
+  5, 15,  # z4
+  6, 12,  # z5
+  4, 2,   # z6
+  10, 22, # z7
+  11, 20, # z8
+  12, 25, # z9
+  8, 16   # z10
+), ncol = 2, byrow = TRUE)
+
+colnames(points) <- c("x", "y")
+rownames(points) <- paste0("z", 1:10)
+
+# C1: z1, z6
+# C2: z2, z3, z5
+# C3: z4, z7, z8, z9, z10
+initial_clusters <- list(
+  C1 = c(1, 6),
+  C2 = c(2, 3, 5),
+  C3 = c(4, 7, 8, 9, 10)
+)
+
+compute_centroid <- function(indices) {
+  colMeans(points[indices, , drop = FALSE])
+}
+
+centroids <- t(sapply(initial_clusters, compute_centroid))
+centroids
+
+assign_to_nearest <- function(pt, centroids) {
+  dists <- apply(centroids, 1, function(center) sum((pt - center)^2))
+  which.min(dists)
+}
+
+new_cluster_ids <- apply(points, 1, assign_to_nearest, centroids = centroids)
+cluster_names <- names(initial_clusters)[new_cluster_ids]
+
+data.frame(Point = rownames(points), AssignedTo = cluster_names)
+```
+**Interpretation:** Each $z_i$ is reassigned to the closest centroid.
+
+### (c)(iii)
+```{r}
+# the first update
+updated_clusters <- list(
+  C1 = which(cluster_names == "C1"),
+  C2 = which(cluster_names == "C2"),
+  C3 = which(cluster_names == "C3")
+)
+
+centroids_2 <- t(sapply(updated_clusters, function(indices) {
+  colMeans(points[indices, , drop = FALSE])
+}))
+centroids_2
+
+new_cluster_ids_2 <- apply(points, 1, assign_to_nearest, centroids = centroids_2)
+cluster_names_2 <- names(updated_clusters)[new_cluster_ids_2]
+
+data.frame(Point = rownames(points),
+           ClusterAfterUpdate1 = cluster_names,
+           ClusterAfterUpdate2 = cluster_names_2)
+```
+**Interpretation:** The centroids are recomputed and reassigned. The data frame shows the comparison.
+
+### (d)
+```{r}
+points <- matrix(c(
+  2, 4,   # z1
+  3, 3,   # z2
+  3, 6,   # z3
+  5, 15,  # z4
+  6, 12,  # z5
+  4, 2,   # z6
+  10, 22, # z7
+  11, 20, # z8
+  12, 25, # z9
+  8, 16   # z10
+), ncol = 2, byrow = TRUE)
+
+colnames(points) <- c("x", "y")
+rownames(points) <- paste0("z", 1:10)
+
+set.seed(123) # keep the reproducibility
+
+results <- list()
+
+for (i in 1:5) {
+  km <- kmeans(points, centers = 3, nstart = 1)
+  results[[i]] <- list(
+    clusters = km$cluster,
+    tot_withinss = km$tot.withinss
+  )
+}
+
+for (i in 1:5) {
+  cat("Run", i, "\n")
+  cat("Cluster assignment:", results[[i]]$clusters, "\n")
+  cat("Total within-cluster sum of squares:", results[[i]]$tot_withinss, "\n\n")
+}
+```
+**Interpretation:** The final solution looks different. The cluster assignment results are all different. However, the total within-cluster sum of squares keeps constant, which is always 38.75.
+
+---
+
+## Problem 3
+### (c)
+```{r}
+points <- matrix(c(
+  2, 4,   # z1
+  3, 3,   # z2
+  3, 6,   # z3
+  5, 15,  # z4
+  6, 12,  # z5
+  4, 2,   # z6
+  10, 22, # z7
+  11, 20, # z8
+  12, 25, # z9
+  8, 16   # z10
+), ncol = 2, byrow = TRUE)
+
+rownames(points) <- paste0("z", 1:10)
+colnames(points) <- c("x", "y")
+
+dists <- dist(points)
+
+hc <- hclust(dists, method = "complete")
+
+plot(hc, labels = rownames(points), main = "Dendrogram (Complete Linkage)",
+     xlab = "Points", ylab = "Height")
+abline(h = 12, col = "red", lty = 2)
+
+cut3 <- cutree(hc, k = 3)
+cut3
+
+merge_info <- as.data.frame(hc$merge)
+merge_info$height <- hc$height
+head(merge_info)
+
+set.seed(123)
+kmeans_result <- kmeans(points, centers = 3, nstart = 10)
+kmeans_result$cluster
+
+data.frame(Point = rownames(points),
+           Hierarchical = cut3,
+           KMeans = kmeans_result$cluster)
+
+cutree(hc, k = 3)
+split(rownames(points), cutree(hc, k = 3))
+```
+**Interpretation:** Points $z_1$ and $z_2$ merge first because their merging height is the lowest in the dendrogram. Before a “major” grouping forms, about 7 merges have occurred. The dendrogram is shown above. When k = 3, the clusters in the dendrograms are different from the result with k-means clustering. $z_{10}$ is assigned to the $C_2$ cluster with hierarchical clustering, but it is assigned to $C_3$ cluster with k-means clustering.
+
+
+
+
+
+
+
+

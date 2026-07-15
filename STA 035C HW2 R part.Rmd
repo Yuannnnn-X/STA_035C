@@ -1,0 +1,273 @@
+---
+title: 'STA 035C Homework 2: R Part'
+author: "Yuan Xie"
+date: "2025-04-20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+```
+
+---
+
+## Problem 3
+### (c)
+#### (i)
+
+```{r}
+# ensure the reproducibility
+set.seed(123)
+# dataset of size n = 50
+n <- 50
+# in a uniform distribution
+X <- runif(n, min = 0, max = 30)
+# the function of p
+p <- 1 / (1 + exp(-(-5 + 0.25 * X)))
+# generate Y
+Y <- rbinom(n, size = 1, prob = p)
+Y
+```
+
+#### (ii)
+
+```{r}
+# construct the logistic model
+model <- glm(Y ~ X, family = binomial)
+model
+```
+
+#### (iii)
+
+```{r}
+# summary() the model and pull the coefficients out
+summary(model)$coefficients
+```
+**Answer:** The estimated intercept -9.40 and estimated slope 0.46 are different from the true parameters -5 and 0.25. They are not very close. However, it is normal to have some random variation in a small sample size.
+
+#### (iv)
+
+```{r}
+# make a tiny data frame of Y against X
+df <- data.frame(X = X, Y = Y)
+
+# put X and Y into the tiny data frame
+x_vals <- seq(0, 30, length.out = 300)
+predicted_probs <- predict(model, newdata = data.frame(X = x_vals), type = "response")
+fitted_df <- data.frame(X = x_vals, Prob = predicted_probs)
+
+# plot the fitted logistic curve and the data points
+df %>% ggplot(aes(x = X, y = Y)) +
+  geom_point(color = "black", size = 2, alpha = 0.7) +  # actual data points
+  geom_line(data = fitted_df, aes(x = X, y = Prob), color = "red", linewidth = 1.2) +  # fitted curve
+  labs(title = "Logistic Regression Fit",
+       x = "X",
+       y = "Probability / Outcome")
+```
+
+#### (v)
+
+```{r}
+# predict probabilities for all X values
+predicted_probs <- predict(model, type = "response")
+
+# threshold 0.4
+pred_class_0.4 <- ifelse(predicted_probs >= 0.4, 1, 0)
+conf_matrix_0.4 <- table(Predicted = pred_class_0.4, Actual = Y)
+
+# threshold 0.5
+pred_class_0.5 <- ifelse(predicted_probs >= 0.5, 1, 0)
+conf_matrix_0.5 <- table(Predicted = pred_class_0.5, Actual = Y)
+
+# show the two confusion matrices
+conf_matrix_0.4
+conf_matrix_0.5
+```
+**Answer:** When using 0.4, the model is more lenient. There are fewer false negatives, but more false positives. When using 0.5, the model is stricter. There are fewer false positives, but more false negatives.
+
+#### (vi)
+
+**Answer:** With a greater sample size, the estimates of the intercept and slope will be closer to the true values. The logistic curve will fit the data better.
+
+---
+
+## Problem 4
+### (a)
+#### (i)
+
+```{r}
+# input the data into a tiny data frame
+df <- data.frame(
+  X1 = c(1.5, 2.0, 2.3, 3.0, 3.5, 4.1, 4.4, 5.2, 5.4),
+  X2 = c(25, 50, 55, 60, 80, 75, 120, 100, 110),
+  C = factor(c(1,1,1, 2,2,2, 3,3,3))
+)
+
+# calculate each class mean vector
+mu1 <- colMeans(df[df$C == 1, 1:2])
+mu2 <- colMeans(df[df$C == 2, 1:2])
+mu3 <- colMeans(df[df$C == 3, 1:2])
+# show the mean vectors
+mu1
+mu2
+mu3
+
+# calculate the common covariance matrix with 2 degrees of freedom
+matrix_cov <- (
+  cov(df[df$C == 1, 1:2]) * 2 +
+  cov(df[df$C == 2, 1:2]) * 2 +
+  cov(df[df$C == 3, 1:2]) * 2
+) / (9 - 3)
+
+# show the common covariance matrix
+matrix_cov
+```
+
+#### (ii)
+
+```{r}
+# use solve() to get the inverse of the matrix
+Sigma_inv <- solve(matrix_cov)
+# show the inverse matrix
+Sigma_inv
+
+# make the linear discriminant functions for the three cases
+delta1 <- function(x1, x2) {
+  x <- c(x1, x2)
+  as.numeric(t(x) %*% Sigma_inv %*% mu1 - 0.5 * t(mu1) %*% Sigma_inv %*% mu1)
+}
+
+delta2 <- function(x1, x2) {
+  x <- c(x1, x2)
+  as.numeric(t(x) %*% Sigma_inv %*% mu2 - 0.5 * t(mu2) %*% Sigma_inv %*% mu2)
+}
+
+delta3 <- function(x1, x2) {
+  x <- c(x1, x2)
+  as.numeric(t(x) %*% Sigma_inv %*% mu3 - 0.5 * t(mu3) %*% Sigma_inv %*% mu3)
+}
+
+a1 <- Sigma_inv %*% mu1
+a2 <- Sigma_inv %*% mu2
+a3 <- Sigma_inv %*% mu3
+
+c1 <- -0.5 * t(mu1) %*% Sigma_inv %*% mu1
+c2 <- -0.5 * t(mu2) %*% Sigma_inv %*% mu2
+c3 <- -0.5 * t(mu3) %*% Sigma_inv %*% mu3
+
+# show the 3 discriminant functions
+cat("delta_1(x) = ", a1[1], "* x1 +", a1[2], "* x2 +", c1, "\n")
+cat("delta_2(x) = ", a2[1], "* x1 +", a2[2], "* x2 +", c2, "\n")
+cat("delta_3(x) = ", a3[1], "* x1 +", a3[2], "* x2 +", c3, "\n")
+```
+
+#### (iii)
+
+```{r}
+# define the range of x and y axes here
+x1_seq <- seq(1, 6, length.out = 200)
+x2_seq <- seq(20, 130, length.out = 200)
+# make a grid to store the data
+grid <- expand.grid(x1 = x1_seq, x2 = x2_seq)
+
+# predict the data points in the grid
+grid <- grid %>%
+  # process row by row
+  rowwise() %>%
+  mutate(
+    d1 = delta1(x1, x2),
+    d2 = delta2(x1, x2),
+    d3 = delta3(x1, x2),
+    pred = which.max(c(d1, d2, d3))
+  ) %>%
+  # delete the rowwise structure
+  ungroup() %>%
+  # add the class title
+  mutate(pred = factor(pred, labels = c("Light", "Moderate", "Heavy")))
+
+# change it to factors
+df$C <- factor(df$C, labels = c("Light", "Moderate", "Heavy"))
+
+# plot the graph
+ggplot() +
+  geom_tile(data = grid, aes(x = x1, y = x2, fill = pred), alpha = 0.5) +
+  geom_point(data = df, aes(x = X1, y = X2, color = C), size = 3) +
+  scale_fill_manual(values = c("lightblue", "lightgreen", "pink"),
+                    name = "Predicted Class") +
+  scale_color_manual(values = c("blue", "green", "red"),
+                     name = "True Class") +
+  labs(x = "Screen Time (hrs/day)",
+       y = "Call Time (mins/week)",
+       title = "LDA Decision Boundaries")
+```
+**Answer:** The decision boundaries are determined when the discriminant functions are equal. The boundaries will be linear.
+
+### (b)
+#### (i)
+
+```{r}
+# the same as the last question
+df$C <- factor(df$C, labels = c("Light", "Moderate", "Heavy"))
+
+# use nnet::multinom to fit the data
+library(nnet)
+model_mlr <- multinom(C ~ X1 + X2, data = df)
+
+# the same as the last question
+x1_seq <- seq(1, 6, length.out = 200)
+x2_seq <- seq(20, 130, length.out = 200)
+grid <- expand.grid(X1 = x1_seq, X2 = x2_seq)
+
+grid$pred <- predict(model_mlr, newdata = grid)
+
+# the same as the last question
+ggplot() +
+  geom_tile(data = grid, aes(x = X1, y = X2, fill = pred), alpha = 0.3) +
+  geom_point(data = df, aes(x = X1, y = X2, color = C), size = 3) +
+  scale_fill_manual(values = c("lightblue", "lightgreen", "pink"),
+                    name = "Predicted Class") +
+  scale_color_manual(values = c("blue", "green", "red"),
+                     name = "True Class") +
+  labs(x = "Screen Time (hrs/day)",
+       y = "Call Time (mins/week)",
+       title = "Multinomial Logistic Regression Decision Boundaries")
+```
+**Answer:** The boundary of the multiple logistic regression is not linear compared to LDA.
+
+#### (ii)
+
+```{r}
+lda_pred_class <- {
+  d1 <- delta1(3.1, 90)
+  d2 <- delta2(3.1, 90)
+  d3 <- delta3(3.1, 90)
+  c("Light", "Moderate", "Heavy")[which.max(c(d1, d2, d3))]
+}
+
+new_user <- data.frame(X1 = 3.1, X2 = 90)
+mlr_pred_class <- predict(model_mlr, newdata = new_user)
+
+cat("LDA prediction: ", lda_pred_class, "\n")
+cat("Multinomial logistic prediction: ", mlr_pred_class, "\n")
+```
+**Answer:** LDA assigns to moderate. Mutinomial logistic prediction assigns to light. The predictions are different.
+
+### (c)
+
+I have no idea...
+
+
+
+
+
+
+
+
+

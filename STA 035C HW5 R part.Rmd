@@ -1,0 +1,354 @@
+---
+title: 'STA 035C Homework 5: R Part'
+author: "Yuan Xie"
+date: "2025-05-25"
+output: 
+  pdf_document:
+    keep_tex: no
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+library(ISLR2)
+head(Boston)
+```
+
+---
+
+## Problem 3
+### (9a)
+```{r}
+# create the model with poly() function
+model_boston <- lm(nox ~ poly(dis, 3, raw = TRUE), data = Boston)
+summary(model_boston)
+
+# create the predicting data and store it in a tidy data frame
+dis_vals <- data.frame(dis = seq(min(Boston$dis), max(Boston$dis), length.out = 200))
+dis_vals$pred <- predict(model_boston, newdata = dis_vals)
+
+# plot the points and draw the best fit curve
+ggplot(Boston, aes(x = dis, y = nox)) +
+  geom_point(color = "black", size = 2, alpha = 0.6) +  # data points
+  geom_line(data = dis_vals, aes(x = dis, y = pred), color = "red", linewidth = 1.2) +  # best fit curve
+  labs(title = "Cubic Polynomial Regression: nox ~ dis",
+       x = "dis (Distance to Employment Centers)",
+       y = "nox (Nitrogen Oxides Concentration)")
+```
+**Interpretation:** According to the regression model, $\hat{nox} = 0.9341281 - 0.1820817dis + 0.0219277dis^2 - 0.0008850dis^3$. The plot for the resulting data and polynomial fits is shown above.
+
+### (9b)
+```{r}
+# Create prediction grid
+dis_vals <- data.frame(dis = seq(min(Boston$dis), max(Boston$dis), length.out = 200))
+
+# Store all fits and RSS values
+rss_list <- numeric(10) # Store RSS from degree 1 to 10
+fit_list <- list() # Store prediction curves for ggplot
+
+for (d in 1:10) {
+  # fit model with raw polynomials in the for loop
+  model <- lm(nox ~ poly(dis, d, raw = TRUE), data = Boston)
+  
+  # predict on grid for plotting
+  dis_vals[[paste0("pred", d)]] <- predict(model, newdata = dis_vals)
+  
+  # compute residual sum of squares (RSS)
+  rss_list[d] <- sum(residuals(model)^2)
+}
+
+# basic plot with data points
+plot_base <- ggplot(Boston, aes(x = dis, y = nox)) +
+  geom_point(color = "black", size = 1.5, alpha = 0.5) +
+  labs(title = "Polynomial Fits of Varying Degrees", x = "dis", y = "nox") +
+  theme_minimal()
+
+# add fitted lines (you can add more if needed)
+plot_base +
+  geom_line(data = dis_vals, aes(x = dis, y = pred1), color = "blue", linewidth = 1, linetype = "dashed") +
+  geom_line(data = dis_vals, aes(x = dis, y = pred3), color = "red", linewidth = 1.2) +
+  geom_line(data = dis_vals, aes(x = dis, y = pred5), color = "green", linewidth = 1.2) +
+  geom_line(data = dis_vals, aes(x = dis, y = pred10), color = "purple", linewidth = 1.2)
+
+# report residual sum of squares for degree 1 to 10
+data.frame(Degree = 1:10, RSS = round(rss_list, 5))
+
+# create a tiny data frame to srore the data
+rss_df <- data.frame(Degree = 1:10, RSS = rss_list)
+
+# plot the graph
+ggplot(rss_df, aes(x = Degree, y = RSS)) +
+  geom_line(color = "orange", linewidth = 1.2) +
+  geom_point(color = "black", size = 2) +
+  labs(title = "Residual Sum of Squares by Polynomial Degree",
+       x = "Polynomial Degree",
+       y = "RSS") 
+```
+**Interpretation:** The polynomial fits for a range of different polynomial degrees are shown above. The associated residual sum of squares are displayed in the data frame. The RSS kept decreasing as the polynomial degree increased from 1 to 10.
+
+### (9c)
+```{r}
+library(boot)
+
+# set up to store cross-validation errors
+cv_errors <- rep(0, 10)
+
+# 10-fold CV for each degree from 1 to 10
+set.seed(1)
+for (d in 1:10) {
+  model <- glm(nox ~ poly(dis, d, raw = TRUE), data = Boston)
+  cv_result <- cv.glm(Boston, model, K = 10)
+  cv_errors[d] <- cv_result$delta[1]  # Estimated cross-validation error
+}
+
+# show cross-validation errors for degree 1 to 10
+cv_df <- data.frame(Degree = 1:10, CV_Error = round(cv_errors, 5))
+# arrange them
+cv_df %>% arrange(CV_Error)
+
+# plot the CV error vs degree
+library(ggplot2)
+ggplot(cv_df, aes(x = Degree, y = CV_Error)) +
+  geom_line(color = "blue", linewidth = 1.2) +
+  geom_point(size = 2, color = "red") +
+  labs(title = "10-Fold Cross-Validation Error by Polynomial Degree",
+       x = "Degree",
+       y = "CV Error")
+```
+**Interpretation:** Based on the arranged data frame, the polynomial with degree 4 has the smallest cross-validation error. Those polynomial with degree lower than 4 may underfit the data. Those polynomial with degree higher than 4 may overfit the data. 
+
+### (9d)
+```{r}
+library(splines)
+
+# fit regression spline using bs() with 4 degrees of freedom
+spline_model <- lm(nox ~ bs(dis, df = 4), data = Boston)
+
+# summary of the model
+summary(spline_model)
+
+# create prediction grid
+dis_grid <- data.frame(dis = seq(min(Boston$dis), max(Boston$dis), length.out = 200))
+dis_grid$pred <- predict(spline_model, newdata = dis_grid)
+
+# plot original data and fitted spline curve
+ggplot(Boston, aes(x = dis, y = nox)) +
+  geom_point(color = "black", alpha = 0.5, size = 1.5) +
+  geom_line(data = dis_grid, aes(x = dis, y = pred), color = "red", linewidth = 1.2) +
+  labs(title = "Regression Spline Fit with bs(dis, df = 4)",
+       x = "dis (Distance to Employment Centers)",
+       y = "nox (Nitrogen Oxides Concentration)")
+```
+**Interpretation:** According to the regression model with four degrees of freedom, $\hat{nox} = 0.73447 - 0.05810B_{1}dis - 0.46356B_{2}dis - 0.19979B_{3}dis - 0.38881B_{4}dis$. The bs() function automatically gives uniform mass, so each segment has roughly equal datapoints. 
+
+### (9e)
+```{r}
+# create grid for predictions
+dis_grid <- seq(min(Boston$dis), max(Boston$dis), length.out = 200)
+
+# store fits and RSS
+rss_spline <- numeric(8)  # df = 3 to 10
+fit_df <- data.frame(dis = dis_grid)
+
+for (d in 3:10) {
+  model <- lm(nox ~ bs(dis, df = d), data = Boston)
+  
+  # store predictions
+  fit_df[[paste0("df", d)]] <- predict(model, newdata = data.frame(dis = dis_grid))
+  
+  # compute RSS
+  rss_spline[d - 2] <- sum(residuals(model)^2)
+}
+
+data.frame(DF = 3:10, RSS = round(rss_spline, 5))
+
+ggplot(Boston, aes(x = dis, y = nox)) +
+  geom_point(alpha = 0.4) +
+  geom_line(data = fit_df, aes(x = dis, y = df3), color = "blue", linewidth = 1.1) +
+  geom_line(data = fit_df, aes(x = dis, y = df4), color = "red", linewidth = 1.1) +
+  geom_line(data = fit_df, aes(x = dis, y = df6), color = "green", linewidth = 1.1) +
+  geom_line(data = fit_df, aes(x = dis, y = df10), color = "purple", linewidth = 1.1) +
+  labs(title = "Regression Spline Fits with Varying Degrees of Freedom",
+       x = "dis", y = "nox")
+```
+**Interpretation:** The RSS steadily decreased as the degrees of freedom increased. With the higher degrees of freedom, the regression spline looks more wiggly. This may indicate potential overfitting at higher degrees.
+
+### (9f)
+```{r}
+library(splines)
+library(boot)
+
+# set up vector to store cross-validation errors
+cv_error_spline <- numeric(8)  # df = 3 to 10
+
+# loop through degrees of freedom from 3 to 10
+set.seed(1)
+for (d in 3:10) {
+  model <- glm(nox ~ bs(dis, df = d, Boundary.knots = range(Boston$dis)), data = Boston)
+  cv_result <- cv.glm(Boston, model, K = 10)
+  cv_error_spline[d - 2] <- cv_result$delta[1]
+}
+
+# create a data frame of results
+cv_df <- data.frame(Degree_of_Freedom = 3:10, CV_Error = round(cv_error_spline, 5))
+cv_df %>% arrange(CV_Error)
+
+# plot the CV errors
+ggplot(cv_df, aes(x = Degree_of_Freedom, y = CV_Error)) +
+  geom_line(color = "blue", linewidth = 1.2) +
+  geom_point(size = 2, color = "red") +
+  labs(title = "10-Fold CV Error for Regression Splines",
+       x = "Degrees of Freedom",
+       y = "Cross-Validation Error")
+```
+**Interpretation:** Based on the cross-validation process, the error is the lowest when the degree of freedom is 6.
+
+---
+
+### (2a)
+```{r}
+set.seed(0)
+x <- seq(0, 10, length.out = 10)
+y <- sin(x) + rnorm(10)
+data <- data.frame(x = x, y = y)
+
+x_dense <- seq(0, 10, length.out = 400)
+plot_data <- data.frame(x = x_dense, ghat = 0)
+
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y), color = "black") +
+  geom_line(data = plot_data, aes(x = x, y = ghat), color = "red", size = 1.2) +
+  labs(title = "(a) lambda = positve infinity, m = 0: g(x) = 0",
+       x = "x", y = "g(x)")
+```
+
+### (2b)
+```{r}
+set.seed(0)
+x <- seq(0, 10, length.out = 10)
+y <- sin(x) + rnorm(10)
+data <- data.frame(x = x, y = y)
+
+x_dense <- seq(0, 10, length.out = 400)
+mean_y <- mean(y)
+plot_data <- data.frame(x = x_dense, ghat = mean_y)
+
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y), color = "black") +
+  geom_line(data = plot_data, aes(x = x, y = ghat), color = "blue", size = 1.2) +
+  labs(title = "(b) lambda = positve infinity, m = 1: g(x) = mean(y)",
+       x = "x", y = "g(x)")
+```
+
+### (2c)
+```{r}
+set.seed(0)
+x <- seq(0, 10, length.out = 10)
+y <- sin(x) + rnorm(10)
+data <- data.frame(x = x, y = y)
+
+fit_lm <- lm(y ~ x, data = data)
+x_dense <- seq(0, 10, length.out = 400)
+g_hat <- predict(fit_lm, newdata = data.frame(x = x_dense))
+plot_data <- data.frame(x = x_dense, ghat = g_hat)
+
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y), color = "black") +
+  geom_line(data = plot_data, aes(x = x, y = ghat), color = "darkgreen", size = 1.2) +
+  labs(title = "(c) lambda = positve infinity, m = 2: Linear Fit",
+       x = "x", y = "g(x)") 
+```
+
+### (2d)
+```{r}
+set.seed(0)
+x <- seq(0, 10, length.out = 10)
+y <- sin(x) + rnorm(10)
+data <- data.frame(x = x, y = y)
+
+fit_quad <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
+x_dense <- seq(0, 10, length.out = 400)
+g_hat <- predict(fit_quad, newdata = data.frame(x = x_dense))
+plot_data <- data.frame(x = x_dense, ghat = g_hat)
+
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y), color = "black") +
+  geom_line(data = plot_data, aes(x = x, y = ghat), color = "purple", size = 1.2) +
+  labs(title = "(d) lambda = positve infinity, m = 3: Quadratic Fit",
+       x = "x", y = "g(x)")
+```
+
+### (2e)
+```{r}
+set.seed(0)
+x <- seq(0, 10, length.out = 10)
+y <- sin(x) + rnorm(10)
+data <- data.frame(x = x, y = y)
+
+# natural spline
+fit_spline <- lm(y ~ ns(x, df = 9), data = data)
+x_dense <- seq(0, 10, length.out = 400)
+g_hat <- predict(fit_spline, newdata = data.frame(x = x_dense))
+plot_data <- data.frame(x = x_dense, ghat = g_hat)
+
+ggplot() +
+  geom_point(data = data, aes(x = x, y = y), color = "black") +
+  geom_line(data = plot_data, aes(x = x, y = ghat), color = "orange", size = 1.2) +
+  labs(title = "(e) lambda = 0, m = 3: Overfit Spline",
+       x = "x", y = "g(x)")
+```
+
+---
+
+## Problem 4
+### (c)(i)
+```{r}
+# create the 8x2 matrix X
+X <- rbind(
+  c(1, 2),
+  c(2, 1.5),
+  c(3, 2.5),
+  c(4, 3),
+  c(2, 3.5),
+  c(3, 4.5),
+  c(4, 5),
+  c(5, 6)
+)
+
+# assign column names for clarity (optional)
+colnames(X) <- c("x", "y")
+
+# display the matrix
+X
+```
+**Interpretation:** The matrix is created and shown above.
+
+### (c)(ii)
+```{r}
+# run PCA
+pca_res <- prcomp(X, center = TRUE, scale. = FALSE)
+# see the results
+summary(pca_res)
+```
+**Interpretation:** The result of the PCA is shown above.
+
+### (c)(iii)
+```{r}
+pca_res$rotation
+```
+**Interpretation:** The first principal component vector is <0.6238505, 0.7815437>. The percentage of variance explained by it is 0.889.
+
+### (c)(iv)
+**Answer:** The first principal component vector here <0.6238505, 0.7815437> points in a similar direction to the line y = x. They both indicate that the data varies most along a positively sloped diagonal line. The line y = x is a reasonable approximation of the principal axis.
+
+
+
+

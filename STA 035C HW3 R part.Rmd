@@ -1,0 +1,391 @@
+---
+title: 'STA 035C Homework 3: R Part'
+author: "Yuan Xie"
+date: "2025-05-03"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+```
+
+---
+
+## Problem 2
+### (c)(i)
+
+```{r}
+# Set seed for reproducibility
+set.seed(1)
+# Generate data for label = 1
+X1_1 <- rnorm(40, mean = 2, sd = 1)
+X2_1 <- rnorm(40, mean = 2, sd = 1)
+# Generate (X1, X2) for label = 0
+X1_0 <- rnorm(60, mean = 0, sd = 1.2)
+X2_0 <- rnorm(60, mean = 0, sd = 1.2)
+# Combine into a single dataset
+X1 <- c(X1_1, X1_0)
+X2 <- c(X2_1, X2_0)
+Label <- c(rep(1, 40), rep(0, 60))
+# Create a data frame
+df <- data.frame(X1 = X1, X2 = X2, Label = Label)
+# Fit logistic regression model
+model <- glm(Label ~ X1 + X2, data = df, family = binomial)
+# Predict probabilities
+pred_probs <- predict(model, type = "response")
+
+
+# (i) Confusion matrix and TPR/FPR at p* = 0.5
+# Set the threshold
+threshold <- 0.5
+pred_labels <- ifelse(pred_probs >= threshold, 1, 0)
+# Confusion matrix
+conf_mat <- table(Predicted = pred_labels, Actual = df$Label)
+print(conf_mat)
+# Compute TP, FN, FP, TN
+TP <- sum(pred_labels == 1 & df$Label == 1)
+FN <- sum(pred_labels == 0 & df$Label == 1)
+FP <- sum(pred_labels == 1 & df$Label == 0)
+TN <- sum(pred_labels == 0 & df$Label == 0)
+# Compute TPR and FPR
+TPR <- TP / (TP + FN)  # sensitivity
+FPR <- FP / (FP + TN)  # 1 - specificity
+cat("TPR at p* = 0.5:", TPR, "\n")
+cat("FPR at p* = 0.5:", FPR, "\n")
+```
+
+### (c)(ii)
+
+```{r}
+# Create thresholds and initialize vectors
+thresholds <- seq(0, 1, by = 0.05)
+tpr_vec <- numeric(length(thresholds))
+fpr_vec <- numeric(length(thresholds))
+
+# Loop to compute TPR and FPR for each threshold
+for (i in seq_along(thresholds)) {
+  thresh <- thresholds[i]
+  pred <- ifelse(pred_probs >= thresh, 1, 0)
+  TP <- sum(pred == 1 & df$Label == 1)
+  FN <- sum(pred == 0 & df$Label == 1)
+  FP <- sum(pred == 1 & df$Label == 0)
+  TN <- sum(pred == 0 & df$Label == 0)
+  tpr_vec[i] <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+  fpr_vec[i] <- ifelse((FP + TN) == 0, 0, FP / (FP + TN))
+}
+
+# Create a data frame for ggplot
+roc_df <- data.frame(
+  Threshold = thresholds,
+  TPR = tpr_vec,
+  FPR = fpr_vec
+)
+
+# Plot ROC Curve using ggplot
+ggplot(roc_df, aes(x = FPR, y = TPR)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 2) +
+  labs(title = "ROC Curve",
+       x = "False Positive Rate (FPR)",
+       y = "True Positive Rate (TPR)")
+```
+
+---
+
+## Problem 4
+### (b)(i)
+**Answer:** n = 100 and p = 1. The model is quadratic: $y = x - 2x^2 + \epsilon$, where $\epsilon$ ~ $N(0, 1)$
+
+### (b)(ii)
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+# draw the scatterplot
+plot(x, y, main = "Scatterplot of X vs Y")
+```
+**Answer:** Visually, these points roughly form a parabolic curve, since the relationship is quadratic.
+
+### (b)(iii)
+```{r}
+# generate the data
+set.seed(1)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+data <- data.frame(x = x, y = y)
+
+### linear model
+errors1 <- rep(NA, 100)
+for (i in 1:100) {
+  model1 <- lm(y ~ x, data = data[-i, ])
+  pred1 <- predict(model1, newdata = data[i, , drop = FALSE])
+  errors1[i] <- (data$y[i] - pred1)^2
+}
+(loocv1 <- mean(errors1))
+
+### quadratic model
+data$x2 <- x^2
+errors2 <- rep(NA, 100)
+for (i in 1:100) {
+  model2 <- lm(y ~ x + x2, data = data[-i, ])
+  pred2 <- predict(model2, newdata = data[i, , drop = FALSE])
+  errors2[i] <- (data$y[i] - pred2)^2
+}
+(loocv2 <- mean(errors2))
+
+### cubic model
+data$x3 <- x^3
+errors3 <- rep(NA, 100)
+for (i in 1:100) {
+  model3 <- lm(y ~ x + x2 + x3, data = data[-i, ])
+  pred3 <- predict(model3, newdata = data[i, , drop = FALSE])
+  errors3[i] <- (data$y[i] - pred3)^2
+}
+(loocv3 <- mean(errors3))
+
+### quartic model
+data$x4 <- x^4
+errors4 <- rep(NA, 100)
+for (i in 1:100) {
+  model4 <- lm(y ~ x + x2 + x3 + x4, data = data[-i, ])
+  pred4 <- predict(model4, newdata = data[i, , drop = FALSE])
+  errors4[i] <- (data$y[i] - pred4)^2
+}
+(loocv4 <- mean(errors4))
+```
+
+### (b)(iv)
+```{r}
+# generate the data
+set.seed(2)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+data <- data.frame(x = x, y = y)
+
+### linear model
+errors1 <- rep(NA, 100)
+for (i in 1:100) {
+  model1 <- lm(y ~ x, data = data[-i, ])
+  pred1 <- predict(model1, newdata = data[i, , drop = FALSE])
+  errors1[i] <- (data$y[i] - pred1)^2
+}
+(loocv1 <- mean(errors1))
+
+### quadratic model
+data$x2 <- x^2
+errors2 <- rep(NA, 100)
+for (i in 1:100) {
+  model2 <- lm(y ~ x + x2, data = data[-i, ])
+  pred2 <- predict(model2, newdata = data[i, , drop = FALSE])
+  errors2[i] <- (data$y[i] - pred2)^2
+}
+(loocv2 <- mean(errors2))
+
+### cubic model
+data$x3 <- x^3
+errors3 <- rep(NA, 100)
+for (i in 1:100) {
+  model3 <- lm(y ~ x + x2 + x3, data = data[-i, ])
+  pred3 <- predict(model3, newdata = data[i, , drop = FALSE])
+  errors3[i] <- (data$y[i] - pred3)^2
+}
+(loocv3 <- mean(errors3))
+
+### quartic model
+data$x4 <- x^4
+errors4 <- rep(NA, 100)
+for (i in 1:100) {
+  model4 <- lm(y ~ x + x2 + x3 + x4, data = data[-i, ])
+  pred4 <- predict(model4, newdata = data[i, , drop = FALSE])
+  errors4[i] <- (data$y[i] - pred4)^2
+}
+(loocv4 <- mean(errors4))
+```
+**Answer:** The LOOCV errors changed slightly. The quadratic model still produced the lowest error and it matches the previously generated data. Although the values changed, the overall pattern and best model remained consistent. The conclusion remained stable.
+
+### (b)(v)
+**Answer:** The quadratic model had the smallest LOOCV error. This is what we expected because the data were generated with a quadratic relationship. The linear model underfit the data and thus had a much larger error, while the cubic and quartic models overfit the data. 
+
+### (b)(vi)
+```{r}
+fit1 <- lm(y ~ x, data = data)
+fit2 <- lm(y ~ x + x2, data = data)
+fit3 <- lm(y ~ x + x2 + x3, data = data)
+fit4 <- lm(y ~ x + x2 + x3 + x4, data = data)
+
+summary(fit1)
+summary(fit2)
+summary(fit3)
+summary(fit4)
+```
+**Answer:** In the **linear model**, the coefficient of $x$ is statistically significant (p = 0.0027), but the model does not fit the data well because the $R^2$ is only 0.088. In the **quadratic model**, both $x$ and $x^2$ are highly significant due to the small p-value and  the model explains over 90% of the variance in $y$. In the **cubic model**, the coefficient of $x^3$ is not statistically significant (p = 0.828), suggesting the cubic term is redundant. In the **quartic model**, both the cubic and quartic terms have large p-values, and they are not statistically significant. The model becomes more and more overfitting as the power increases and larger than 2. Therefore, the conclusions are consistent based on the cross-validation results.
+
+---
+
+## Problem 5
+### (a)
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- -1 + 2 * x + rnorm(100)
+
+model <- lm(y ~ x)
+summary(model)$coefficients
+
+b1 <- coef(model)["x"]
+se_b1 <- summary(model)$coefficients["x", "Std. Error"]
+t_val <- qt(0.975, df = 98)  # 100 - 2 = 98 degrees of freedom
+
+lower <- b1 - t_val * se_b1
+upper <- b1 + t_val * se_b1
+
+c(lower, upper)
+```
+**Answer:** $\hat{\beta}_1 = 1.998940$, 95% confidence interval = (1.785159, 2.212720)
+
+### (b)
+```{r}
+ci_lower <- 1.785159
+ci_upper <- 2.212720
+
+beta1_hats <- numeric(1000)
+
+for (k in 1:1000) {
+  set.seed(k)
+  x <- rnorm(100)
+  y <- -1 + 2 * x + rnorm(100)
+  model <- lm(y ~ x)
+  beta1_hats[k] <- coef(model)["x"]
+}
+
+df <- data.frame(beta1_hat = beta1_hats)
+
+ggplot(df, aes(x = beta1_hat)) +
+  geom_histogram(binwidth = 0.05, fill = "skyblue", color = "white", boundary = 0) +
+  geom_vline(xintercept = c(ci_lower, ci_upper), 
+             linetype = "dashed", color = "red", size = 1) +
+  labs(title = expression("Distribution of " ~ hat(beta)[1]),
+       x = expression(hat(beta)[1]),
+       y = "Frequency") +
+  theme_minimal()
+
+in_ci <- mean(beta1_hats >= ci_lower & beta1_hats <= ci_upper)
+in_ci
+```
+**Answer:** The graph is roughly bell-shaped. The observed fraction is 0.966, which is close but slightly larger than 0.95. 
+
+### (c)
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- -1 + 2 * x + rnorm(100)
+data <- data.frame(x = x, y = y)
+
+# draw 1000 bootstrap samples
+beta1_boot <- numeric(1000)
+
+# bootstrap resample
+set.seed(999)
+for (b in 1:1000) {
+  boot_indices <- sample(1:100, size = 100, replace = TRUE)
+  boot_sample <- data[boot_indices, ]
+  model <- lm(y ~ x, data = boot_sample)
+  beta1_boot[b] <- coef(model)["x"]
+}
+
+# make a tiny data frame
+df_boot <- data.frame(beta1_star = beta1_boot)
+
+ggplot(df_boot, aes(x = beta1_star)) +
+  geom_histogram(binwidth = 0.05, fill = "orange", color = "white") +
+  geom_vline(xintercept = c(ci_lower, ci_upper), linetype = "dashed", color = "red", size = 1) +
+  labs(title = expression("Bootstrap Distribution of " ~ hat(beta)[1]^"*"),
+       x = expression(hat(beta)[1]^"*"),
+       y = "Frequency")
+
+ci_lower <- 1.785159
+ci_upper <- 2.212720
+
+# calculate the fraction
+fraction_in_ci <- mean(beta1_boot >= ci_lower & beta1_boot <= ci_upper)
+fraction_in_ci
+```
+**Answer:** The graph is roughly bell-shaped. The observed fraction is 0.977, which is close but slightly larger than 0.95. This is appropriate because the bootstrap distribution is centered around the original sample estimate. The bootstrap only resamples from one fixed dataset. This often leads to overestimated fraction.
+
+### (d)
+```{r}
+set.seed(1)
+x <- rnorm(100)
+y <- -1 + 2*x - x^2 + rnorm(100)
+
+# set the wrong quadratic model
+model_wrong <- lm(y ~ x)
+summary(model_wrong)$coefficients
+
+# extract the confidence interval
+b1 <- coef(model_wrong)["x"]
+se_b1 <- summary(model_wrong)$coefficients["x", "Std. Error"]
+t_val <- qt(0.975, df = 98)
+ci_wrong <- c(b1 - t_val * se_b1, b1 + t_val * se_b1)
+ci_wrong
+
+beta1_wrong <- numeric(1000)
+
+for (k in 1:1000) {
+  set.seed(k)
+  x <- rnorm(100)
+  y <- -1 + 2*x - x^2 + rnorm(100)
+  model <- lm(y ~ x)
+  beta1_wrong[k] <- coef(model)["x"]
+}
+
+df_wrong <- data.frame(beta1_hat = beta1_wrong)
+
+ggplot(df_wrong, aes(x = beta1_hat)) +
+  geom_histogram(binwidth = 0.05, fill = "skyblue", color = "white") +
+  geom_vline(xintercept = ci_wrong, linetype = "dashed", color = "red", size = 1) +
+  labs(title = expression("Distribution of " ~ hat(beta)[1] ~ " under the quadratic model"),
+       x = expression(hat(beta)[1]),
+       y = "Frequency")
+
+mean(beta1_wrong >= ci_wrong[1] & beta1_wrong <= ci_wrong[2])
+
+set.seed(1)
+x <- rnorm(100)
+y <- -1 + 2*x - x^2 + rnorm(100)
+data <- data.frame(x = x, y = y)
+
+boot_wrong <- numeric(1000)
+set.seed(999)
+for (b in 1:1000) {
+  indices <- sample(1:100, 100, replace = TRUE)
+  model <- lm(y ~ x, data = data[indices, ])
+  boot_wrong[b] <- coef(model)["x"]
+}
+
+df_boot_wrong <- data.frame(beta1_star = boot_wrong)
+
+
+ggplot(df_boot_wrong, aes(x = beta1_star)) +
+  geom_histogram(binwidth = 0.05, fill = "orange", color = "white") +
+  geom_vline(xintercept = ci_wrong, linetype = "dashed", color = "red", size = 1) +
+  labs(title = expression("Bootstrap Distribution of " * hat(beta)[1]^"*" * " under the quadratic model"),
+     x = expression(hat(beta)[1]^"*"),
+     y = "Frequency")
+
+mean(boot_wrong >= ci_wrong[1] & boot_wrong <= ci_wrong[2])
+```
+**Answer:** Now, the two fractions here are 0.672 and 0.781 respectively. They are both much smaller than 95%. Bootstrap can only reflect variation in the sample but it cannot prove whether the model is correct or not. If the model is wrong, the confidence interval may also be wrong no matter how many samples we use or bootstrap.
+
+
+
+
+
+
